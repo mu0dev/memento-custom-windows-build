@@ -1,0 +1,77 @@
+name: Build customized Memento for Windows
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Windows x86_64
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+      - name: Install build dependencies
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: ucrt64
+          update: true
+          install: >-
+            curl
+            unzip
+            zip
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-git
+            mingw-w64-ucrt-x86_64-json-c
+            mingw-w64-ucrt-x86_64-libzip
+            mingw-w64-ucrt-x86_64-mecab
+            mingw-w64-ucrt-x86_64-mpv
+            mingw-w64-ucrt-x86_64-ninja
+            mingw-w64-ucrt-x86_64-nsis
+            mingw-w64-ucrt-x86_64-python
+            mingw-w64-ucrt-x86_64-qt6
+            mingw-w64-ucrt-x86_64-sqlite3
+
+      - name: Check out private build repository
+        uses: actions/checkout@v4
+
+      - name: Unpack customized source
+        run: |
+          set -euo pipefail
+          mkdir Memento
+          unzip -q memento-custom-source.zip -d Memento
+
+      - name: Build installer and portable app
+        working-directory: Memento
+        run: |
+          set -euo pipefail
+          ./windows/build-installer.sh \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DMEMENTO_RELEASE_BUILD=ON \
+            -DMEMENTO_MECAB_SUPPORT=ON \
+            -DMEMENTO_WIN32_EXECUTABLE=ON
+
+      - name: Package portable app
+        run: |
+          set -euo pipefail
+          test -s Memento/build/Memento_Windows_x86_64_Installer.exe
+          test -d Memento/build/Memento_x86_64
+          cd Memento/build
+          zip -qr ../../Memento-Custom-Windows-Portable.zip Memento_x86_64
+          cp Memento_Windows_x86_64_Installer.exe \
+            ../../Memento-Custom-Windows-Installer.exe
+
+      - name: Upload Windows downloads
+        uses: actions/upload-artifact@v4
+        with:
+          name: Memento-Custom-Windows
+          path: |
+            Memento-Custom-Windows-Installer.exe
+            Memento-Custom-Windows-Portable.zip
+          if-no-files-found: error
